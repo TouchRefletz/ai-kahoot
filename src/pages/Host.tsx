@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleGenAI, Type } from '@google/genai';
-import { doc, setDoc, collection, onSnapshot, query, orderBy, updateDoc, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, collection, onSnapshot, query, orderBy, updateDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestore';
 import { Upload, FileText, Trash2, Play, Users, BrainCircuit, RefreshCw, AlertCircle, Settings, ChevronRight, Trophy, X, CheckCircle2, XCircle } from 'lucide-react';
@@ -281,7 +281,22 @@ export default function Host() {
       const parsed = JSON.parse(response.text!);
       
       const batch = writeBatch(db);
-      const startIndex = questions.length;
+      
+      questions.forEach((q) => {
+        batch.delete(doc(db, `games/${gameId}/questions`, q.id));
+      });
+
+      players.forEach((p) => {
+        batch.update(doc(db, `games/${gameId}/players`, p.id), {
+          score: 0,
+          currentAnswer: null,
+          lastAnswerCorrect: null,
+          lastScoreAdded: 0,
+          timeTaken: null
+        });
+      });
+
+      const startIndex = 0;
       
       parsed.questions.forEach((q: any, i: number) => {
         const qRef = doc(collection(db, `games/${gameId}/questions`));
@@ -291,7 +306,8 @@ export default function Host() {
       const newHistory = [...(gameState?.history || []), ...parsed.questions.map((q: any) => q.question)];
       batch.update(doc(db, 'games', gameId!), { 
         history: newHistory,
-        status: 'lobby'
+        status: 'lobby',
+        currentQuestionIndex: 0
       });
 
       await batch.commit();
@@ -337,6 +353,7 @@ export default function Host() {
 
   if (!gameId || !gameState) return <div className="min-h-screen bg-neutral-900 flex items-center justify-center text-white">Carregando...</div>;
 
+  const hostPlayer = players.find(p => p.id === auth.currentUser?.uid);
   const currentQ = questions[gameState.currentQuestionIndex];
 
   return (
@@ -487,13 +504,59 @@ export default function Host() {
 
             {/* Right: Players & Start */}
             <div className="bg-neutral-800 p-6 rounded-3xl border border-neutral-700 flex flex-col">
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold flex items-center gap-2">
                   <Users className="w-6 h-6 text-green-400" />
                   Jogadores ({players.length})
                 </h2>
               </div>
               
+              <div className="bg-neutral-900 border border-neutral-700 rounded-xl p-4 mb-4">
+                <h3 className="text-sm font-bold text-neutral-400 mb-2 uppercase tracking-wider">Modo Host-Jogador</h3>
+                {!hostPlayer ? (
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      id="hostNameInput"
+                      placeholder="Seu Apelido" 
+                      className="flex-1 w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white outline-none focus:border-indigo-500"
+                    />
+                    <button 
+                      onClick={async () => {
+                        const input = document.getElementById('hostNameInput') as HTMLInputElement;
+                        const name = input.value.trim();
+                        if (!name) return;
+                        await setDoc(doc(db, `games/${gameId}/players`, auth.currentUser!.uid), {
+                          uid: auth.currentUser!.uid,
+                          name: name,
+                          score: 0,
+                          currentAnswer: null,
+                          lastAnswerCorrect: null,
+                          lastScoreAdded: 0,
+                          joinedAt: new Date().toISOString()
+                        });
+                        input.value = '';
+                      }}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm whitespace-nowrap"
+                    >
+                      Jogar também
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="font-medium">Participando como: <strong className="text-indigo-400 text-base">{hostPlayer.name}</strong></span>
+                    <button 
+                      onClick={async () => {
+                        await deleteDoc(doc(db, `games/${gameId}/players`, auth.currentUser!.uid));
+                      }}
+                      className="text-red-400 hover:text-red-300 font-bold px-3 py-1 rounded-lg bg-red-400/10 hover:bg-red-400/20 transition-colors"
+                    >
+                      Sair
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <div className="flex-1 overflow-y-auto space-y-2 mb-6">
                 {players.length === 0 ? (
                   <p className="text-neutral-500 text-center mt-10">Aguardando jogadores...</p>
@@ -559,10 +622,33 @@ export default function Host() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-auto">
               {currentQ.choices.map((choice: string, idx: number) => {
                 const colors = ['bg-red-500', 'bg-blue-500', 'bg-yellow-500', 'bg-green-500'];
+                const isSelected = hostPlayer?.currentAnswer === idx;
+                const hasAnswered = hostPlayer?.currentAnswer !== null && hostPlayer?.currentAnswer !== -1;
+                
                 return (
-                  <div key={idx} className={cn(colors[idx], "p-6 rounded-2xl shadow-lg flex items-center")}>
-                    <span className="text-2xl font-bold">{choice}</span>
-                  </div>
+                  <button 
+                    key={idx} 
+                    disabled={!hostPlayer || hasAnswered}
+                    onClick={async () => {
+                      if (!hostPlayer || hasAnswered) return;
+                      const limit = currentQ.timeLimit || 20;
+                      const timeTakenLocal = limit - timeLeft;
+                      await updateDoc(doc(db, `games/${gameId}/players`, auth.currentUser!.uid), {
+                        currentAnswer: idx,
+                        answeredAt: new Date().toISOString(),
+                        timeTaken: timeTakenLocal
+                      });
+                    }}
+                    className={cn(
+                      colors[idx], 
+                      "p-6 rounded-2xl shadow-lg flex items-center justify-between text-left transition-transform duration-200",
+                      hostPlayer && !hasAnswered ? "hover:scale-[1.02] active:scale-[0.98] cursor-pointer" : "cursor-default opacity-90",
+                      isSelected && "ring-[6px] ring-white scale-[1.02] shadow-2xl z-10"
+                    )}
+                  >
+                    <span className="text-2xl font-bold max-w-[85%]">{choice}</span>
+                    {isSelected && <span className="bg-white text-black font-black px-3 py-1 rounded-full text-sm">VOCÊ</span>}
+                  </button>
                 );
               })}
             </div>
