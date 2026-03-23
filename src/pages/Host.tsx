@@ -121,10 +121,13 @@ export default function Host() {
               
               let points = 0;
               if (isCorrect) {
-                const answeredAt = p.answeredAt ? new Date(p.answeredAt).getTime() : now;
-                const timeTaken = Math.max((answeredAt - start) / 1000, 0);
+                let timeTaken = p.timeTaken;
+                if (typeof timeTaken !== 'number') {
+                  const answeredAt = p.answeredAt ? new Date(p.answeredAt).getTime() : now;
+                  timeTaken = Math.max((answeredAt - start) / 1000, 0);
+                }
                 const limit = currentQ.timeLimit || 20;
-                const timeRatio = Math.min(timeTaken / limit, 1);
+                const timeRatio = Math.min(Math.max(timeTaken, 0) / limit, 1);
                 // Equação quadrática: 1000 - 1000 * (tempo / tempo_maximo)^2
                 points = Math.max(0, Math.round(1000 - (1000 * Math.pow(timeRatio, 2))));
               }

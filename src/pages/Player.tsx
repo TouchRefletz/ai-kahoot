@@ -67,20 +67,22 @@ export default function Player() {
 
   // Timer logic for player
   useEffect(() => {
-    if (gameState?.status === 'question' && gameState?.questionStartTime) {
+    if (gameState?.status === 'question') {
+      const limit = questions[gameState.currentQuestionIndex]?.timeLimit || 20;
+      setTimeLeft(limit);
+
       const interval = setInterval(() => {
-        const start = new Date(gameState.questionStartTime).getTime();
-        const now = Date.now();
-        const elapsed = Math.floor((now - start) / 1000);
-        const limit = questions[gameState.currentQuestionIndex]?.timeLimit || 20;
-        const remaining = Math.max(0, limit - elapsed);
-        setTimeLeft(remaining);
+        setTimeLeft((prev) => {
+          if (prev === null) return limit - 1;
+          const next = prev - 1;
+          return next > 0 ? next : 0;
+        });
       }, 1000);
       return () => clearInterval(interval);
     } else {
       setTimeLeft(null);
     }
-  }, [gameState?.status, gameState?.questionStartTime, gameState?.currentQuestionIndex, questions]);
+  }, [gameState?.status, gameState?.currentQuestionIndex, questions]);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,10 +124,14 @@ export default function Player() {
     if (selectedAnswer !== null || gameState?.status !== 'question') return;
     setSelectedAnswer(index);
     
+    const limit = questions[gameState.currentQuestionIndex]?.timeLimit || 20;
+    const timeTaken = limit - (timeLeft ?? limit);
+
     try {
       await updateDoc(doc(db, `games/${gameId}/players`, playerId!), {
         currentAnswer: index,
-        answeredAt: new Date().toISOString()
+        answeredAt: new Date().toISOString(),
+        timeTaken: timeTaken
       });
     } catch (err) {
       console.error(err);
