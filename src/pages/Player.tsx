@@ -67,7 +67,19 @@ export default function Player() {
 
   // Timer logic for player
   useEffect(() => {
-    if (gameState?.status === 'question') {
+    if (gameState?.status === 'question_reading') {
+      const limit = 5;
+      setTimeLeft(limit);
+
+      const interval = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev === null) return limit - 1;
+          const next = prev - 1;
+          return next > 0 ? next : 0;
+        });
+      }, 1000);
+      return () => clearInterval(interval);
+    } else if (gameState?.status === 'question') {
       const limit = questions[gameState.currentQuestionIndex]?.timeLimit || 20;
       setTimeLeft(limit);
 
@@ -204,6 +216,18 @@ export default function Player() {
                'Você está no jogo!'}
             </h2>
             <p className="text-neutral-400 text-xl">Olhe para a tela principal.</p>
+          </div>
+        )}
+
+        {status === 'question_reading' && (
+          <div className="flex-1 flex flex-col items-center justify-center text-center">
+            <h2 className="text-3xl font-black mb-8 mt-4">Leia a questão na tela principal!</h2>
+            <div className="relative w-40 h-40 mx-auto flex items-center justify-center mb-10">
+              <div className="absolute inset-0 rounded-full border-8 border-indigo-500/30"></div>
+              <div className="absolute inset-0 rounded-full border-8 border-indigo-500 border-t-transparent animate-spin"></div>
+              <span className="text-6xl font-black text-white">{timeLeft}</span>
+            </div>
+            <p className="text-2xl text-neutral-400 font-bold animate-pulse">Preparando alternativas...</p>
           </div>
         )}
 

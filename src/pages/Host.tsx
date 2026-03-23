@@ -92,6 +92,26 @@ export default function Host() {
 
   // Timer logic
   useEffect(() => {
+    if (gameState?.status === 'question_reading' && gameState?.questionStartTime) {
+      const interval = setInterval(async () => {
+        const start = new Date(gameState.questionStartTime).getTime();
+        const now = new Date().getTime();
+        const elapsed = Math.floor((now - start) / 1000);
+        const remaining = 5 - elapsed;
+
+        if (remaining <= 0) {
+          clearInterval(interval);
+          await updateDoc(doc(db, 'games', gameId!), {
+            status: 'question',
+            questionStartTime: new Date().toISOString()
+          });
+        } else {
+          setTimeLeft(remaining);
+        }
+      }, 500);
+      return () => clearInterval(interval);
+    }
+
     if (gameState?.status === 'question' && gameState?.questionStartTime) {
       const currentQ = questions[gameState.currentQuestionIndex];
       if (!currentQ) return;
@@ -289,7 +309,7 @@ export default function Host() {
     if (questions.length === 0) return;
     try {
       await updateDoc(doc(db, 'games', gameId!), {
-        status: 'question',
+        status: 'question_reading',
         currentQuestionIndex: 0,
         questionStartTime: new Date().toISOString()
       });
@@ -306,7 +326,7 @@ export default function Host() {
       confetti({ particleCount: 300, spread: 150, origin: { y: 0.6 } });
     } else {
       await updateDoc(doc(db, 'games', gameId!), {
-        status: 'question',
+        status: 'question_reading',
         currentQuestionIndex: nextIdx,
         questionStartTime: new Date().toISOString()
       });
@@ -495,6 +515,23 @@ export default function Host() {
               </button>
               {questions.length === 0 && <p className="text-center text-sm text-neutral-500 mt-2">Gere questões primeiro.</p>}
             </div>
+          </div>
+        )}
+
+        {/* QUESTION READING VIEW */}
+        {gameState.status === 'question_reading' && currentQ && (
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <span className="bg-neutral-800 px-4 py-1 rounded-full text-sm font-bold text-neutral-400 mb-6 inline-block">
+              Questão {gameState.currentQuestionIndex + 1} de {questions.length}
+            </span>
+            <h2 className="text-5xl md:text-7xl font-black leading-tight text-center max-w-5xl mb-16">{currentQ.question}</h2>
+            
+            <div className="relative w-32 h-32 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-8 border-indigo-500/30"></div>
+              <div className="absolute inset-0 rounded-full border-8 border-indigo-500 border-t-transparent animate-spin"></div>
+              <span className="text-5xl font-black text-white">{timeLeft}</span>
+            </div>
+            <p className="mt-8 text-neutral-400 font-bold text-xl uppercase tracking-widest animate-pulse">Lendo as alternativas...</p>
           </div>
         )}
 
