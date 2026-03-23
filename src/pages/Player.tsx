@@ -72,7 +72,7 @@ export default function Player() {
         const start = new Date(gameState.questionStartTime).getTime();
         const now = Date.now();
         const elapsed = Math.floor((now - start) / 1000);
-        const limit = gameState.timeLimit || 20;
+        const limit = questions[gameState.currentQuestionIndex]?.timeLimit || 20;
         const remaining = Math.max(0, limit - elapsed);
         setTimeLeft(remaining);
       }, 1000);
@@ -80,7 +80,7 @@ export default function Player() {
     } else {
       setTimeLeft(null);
     }
-  }, [gameState?.status, gameState?.questionStartTime, gameState?.timeLimit]);
+  }, [gameState?.status, gameState?.questionStartTime, gameState?.currentQuestionIndex, questions]);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();

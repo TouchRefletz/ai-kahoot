@@ -102,7 +102,8 @@ export default function Host() {
         const start = new Date(gameState.questionStartTime).getTime();
         const now = new Date().getTime();
         const elapsed = Math.floor((now - start) / 1000);
-        const remaining = currentQ.timeLimit - elapsed;
+        const limit = currentQ.timeLimit || 20;
+        const remaining = limit - elapsed;
 
         const allAnswered = players.length > 0 && players.every(p => p.currentAnswer !== null && p.currentAnswer !== -1);
 
@@ -122,7 +123,8 @@ export default function Host() {
               if (isCorrect) {
                 const answeredAt = p.answeredAt ? new Date(p.answeredAt).getTime() : now;
                 const timeTaken = Math.max((answeredAt - start) / 1000, 0);
-                const timeRatio = Math.min(timeTaken / currentQ.timeLimit, 1);
+                const limit = currentQ.timeLimit || 20;
+                const timeRatio = Math.min(timeTaken / limit, 1);
                 // Equação quadrática: 1000 - 1000 * (tempo / tempo_maximo)^2
                 points = Math.max(0, Math.round(1000 - (1000 * Math.pow(timeRatio, 2))));
               }
@@ -219,7 +221,8 @@ export default function Host() {
       3. Forneça uma explicação curta (1-2 frases) para CADA opção, explicando por que ela está certa ou errada.
       4. NUNCA repita estas questões:
       ${gameState?.history?.length > 0 ? gameState.history.join('\n') : 'Nenhuma ainda.'}
-      5. APENAS JSON válido.
+      5. O campo "timeLimit" DEVE ser sempre 20.
+      6. APENAS JSON válido.
       `;
 
       parts.push({ text: prompt });
