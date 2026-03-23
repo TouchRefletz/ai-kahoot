@@ -29,7 +29,7 @@ service cloud.firestore {
     function isValidGame() {
       return hasRequiredFields(['hostUid', 'status', 'currentQuestionIndex', 'createdAt']) &&
              request.resource.data.hostUid is string &&
-             request.resource.data.status in ['lobby', 'question', 'answer_reveal', 'leaderboard', 'podium', 'generating', 'ended'] &&
+             request.resource.data.status in ['lobby', 'question_reading', 'question', 'answer_reveal', 'leaderboard', 'podium', 'generating', 'ended'] &&
              request.resource.data.currentQuestionIndex is number;
     }
     
