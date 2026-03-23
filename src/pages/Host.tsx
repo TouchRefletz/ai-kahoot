@@ -34,6 +34,7 @@ export default function Host() {
   // Settings State
   const [showSettings, setShowSettings] = useState(false);
   const [customApiKey, setCustomApiKey] = useState(() => localStorage.getItem('custom_gemini_key') || '');
+  const [aiModel, setAiModel] = useState(() => localStorage.getItem('custom_ai_model') || 'gemini-3.1-pro-preview');
 
   // Game State
   const [gameState, setGameState] = useState<any>(null);
@@ -223,7 +224,7 @@ export default function Host() {
       parts.push({ text: prompt });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
+        model: aiModel,
         contents: { parts },
         config: {
           responseMimeType: 'application/json',
@@ -582,10 +583,26 @@ export default function Host() {
                   Se preenchido, usará esta chave ao invés da chave padrão do sistema. Ideal para quando você exportar o projeto para o GitHub. A chave fica salva apenas no seu navegador (localStorage).
                 </p>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-400 mb-2">
+                  Modelo de IA
+                </label>
+                <select
+                  value={aiModel}
+                  onChange={e => setAiModel(e.target.value)}
+                  className="w-full bg-neutral-800 border border-neutral-700 rounded-xl p-3 text-white focus:border-indigo-500 outline-none"
+                >
+                  <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Melhor qualidade)</option>
+                  <option value="gemini-3-flash-preview">Gemini 3 Flash (Mais rápido)</option>
+                  <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (Econômico)</option>
+                </select>
+              </div>
               
               <button
                 onClick={() => {
                   localStorage.setItem('custom_gemini_key', customApiKey);
+                  localStorage.setItem('custom_ai_model', aiModel);
                   setShowSettings(false);
                 }}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors mt-4"
