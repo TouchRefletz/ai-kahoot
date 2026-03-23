@@ -221,13 +221,18 @@ export default function Player() {
 
         {status === 'question' && gameState?.isReading && (
           <div className="flex-1 flex flex-col items-center justify-center text-center">
-            <h2 className="text-3xl font-black mb-8 mt-4">Leia a questão na tela principal!</h2>
-            <div className="relative w-40 h-40 mx-auto flex items-center justify-center mb-10">
+            <span className="bg-neutral-800 px-3 py-1 rounded-full text-sm font-bold text-neutral-400 mb-6">
+              Questão {gameState.currentQuestionIndex + 1}
+            </span>
+            <h2 className="text-3xl lg:text-4xl font-black leading-tight mb-8 mt-2">
+              {questions[gameState.currentQuestionIndex]?.question}
+            </h2>
+            <div className="relative w-32 h-32 mx-auto flex items-center justify-center mb-8">
               <div className="absolute inset-0 rounded-full border-8 border-indigo-500/30"></div>
               <div className="absolute inset-0 rounded-full border-8 border-indigo-500 border-t-transparent animate-spin"></div>
-              <span className="text-6xl font-black text-white">{timeLeft}</span>
+              <span className="text-5xl font-black text-white">{timeLeft}</span>
             </div>
-            <p className="text-2xl text-neutral-400 font-bold animate-pulse">Preparando alternativas...</p>
+            <p className="text-xl text-neutral-400 font-bold animate-pulse">Lendo a questão...</p>
           </div>
         )}
 
