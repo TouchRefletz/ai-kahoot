@@ -67,7 +67,7 @@ export default function Player() {
 
   // Timer logic for player
   useEffect(() => {
-    if (gameState?.status === 'question_reading') {
+    if (gameState?.status === 'question' && gameState?.isReading) {
       const limit = 5;
       setTimeLeft(limit);
 
@@ -79,7 +79,7 @@ export default function Player() {
         });
       }, 1000);
       return () => clearInterval(interval);
-    } else if (gameState?.status === 'question') {
+    } else if (gameState?.status === 'question' && !gameState?.isReading) {
       const limit = questions[gameState.currentQuestionIndex]?.timeLimit || 20;
       setTimeLeft(limit);
 
@@ -94,7 +94,7 @@ export default function Player() {
     } else {
       setTimeLeft(null);
     }
-  }, [gameState?.status, gameState?.currentQuestionIndex, questions]);
+  }, [gameState?.status, gameState?.isReading, gameState?.currentQuestionIndex, questions]);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,7 +219,7 @@ export default function Player() {
           </div>
         )}
 
-        {status === 'question_reading' && (
+        {status === 'question' && gameState?.isReading && (
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             <h2 className="text-3xl font-black mb-8 mt-4">Leia a questão na tela principal!</h2>
             <div className="relative w-40 h-40 mx-auto flex items-center justify-center mb-10">
@@ -231,7 +231,7 @@ export default function Player() {
           </div>
         )}
 
-        {status === 'question' && (
+        {status === 'question' && !gameState?.isReading && (
           <div className="flex-1 flex flex-col">
             {selectedAnswer !== null ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center">

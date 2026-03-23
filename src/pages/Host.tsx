@@ -92,7 +92,7 @@ export default function Host() {
 
   // Timer logic
   useEffect(() => {
-    if (gameState?.status === 'question_reading' && gameState?.questionStartTime) {
+    if (gameState?.status === 'question' && gameState?.isReading && gameState?.questionStartTime) {
       const interval = setInterval(async () => {
         const start = new Date(gameState.questionStartTime).getTime();
         const now = new Date().getTime();
@@ -102,7 +102,7 @@ export default function Host() {
         if (remaining <= 0) {
           clearInterval(interval);
           await updateDoc(doc(db, 'games', gameId!), {
-            status: 'question',
+            isReading: false,
             questionStartTime: new Date().toISOString()
           });
         } else {
@@ -112,7 +112,7 @@ export default function Host() {
       return () => clearInterval(interval);
     }
 
-    if (gameState?.status === 'question' && gameState?.questionStartTime) {
+    if (gameState?.status === 'question' && !gameState?.isReading && gameState?.questionStartTime) {
       const currentQ = questions[gameState.currentQuestionIndex];
       if (!currentQ) return;
 
@@ -309,7 +309,8 @@ export default function Host() {
     if (questions.length === 0) return;
     try {
       await updateDoc(doc(db, 'games', gameId!), {
-        status: 'question_reading',
+        status: 'question',
+        isReading: true,
         currentQuestionIndex: 0,
         questionStartTime: new Date().toISOString()
       });
@@ -326,7 +327,8 @@ export default function Host() {
       confetti({ particleCount: 300, spread: 150, origin: { y: 0.6 } });
     } else {
       await updateDoc(doc(db, 'games', gameId!), {
-        status: 'question_reading',
+        status: 'question',
+        isReading: true,
         currentQuestionIndex: nextIdx,
         questionStartTime: new Date().toISOString()
       });
@@ -519,7 +521,7 @@ export default function Host() {
         )}
 
         {/* QUESTION READING VIEW */}
-        {gameState.status === 'question_reading' && currentQ && (
+        {gameState.status === 'question' && gameState.isReading && currentQ && (
           <div className="flex-1 flex flex-col items-center justify-center">
             <span className="bg-neutral-800 px-4 py-1 rounded-full text-sm font-bold text-neutral-400 mb-6 inline-block">
               Questão {gameState.currentQuestionIndex + 1} de {questions.length}
@@ -536,7 +538,7 @@ export default function Host() {
         )}
 
         {/* QUESTION VIEW */}
-        {gameState.status === 'question' && currentQ && (
+        {gameState.status === 'question' && !gameState.isReading && currentQ && (
           <div className="flex-1 flex flex-col">
             <div className="text-center mb-8">
               <span className="bg-neutral-800 px-4 py-1 rounded-full text-sm font-bold text-neutral-400 mb-4 inline-block">
