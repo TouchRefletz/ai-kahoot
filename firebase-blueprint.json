@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "Game": {
+      "title": "Game",
+      "description": "A Kahoot-style game session",
+      "type": "object",
+      "properties": {
+        "hostUid": {
+          "type": "string",
+          "description": "The UID of the host who created the game"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["lobby", "question", "leaderboard", "generating", "ended"],
+          "description": "The current state of the game"
+        },
+        "currentQuestionIndex": {
+          "type": "number",
+          "description": "The index of the currently active question"
+        },
+        "questionStartTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the current question started"
+        },
+        "history": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "History of generated questions to avoid repetition"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["hostUid", "status", "currentQuestionIndex", "createdAt"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "A single multiple-choice question",
+      "type": "object",
+      "properties": {
+        "index": { "type": "number" },
+        "question": { "type": "string" },
+        "choices": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Exactly 4 choices"
+        },
+        "correctAnswerIndex": { "type": "number" },
+        "timeLimit": { "type": "number" }
+      },
+      "required": ["index", "question", "choices", "correctAnswerIndex", "timeLimit"]
+    },
+    "Player": {
+      "title": "Player",
+      "description": "A player in the game",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "score": { "type": "number" },
+        "currentAnswer": { "type": "number" },
+        "lastAnswerCorrect": { "type": "boolean" },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "score", "joinedAt"]
+    }
+  },
+  "firestore": {
+    "games/{gameId}": {
+      "schema": { "$ref": "#/entities/Game" },
+      "description": "Stores the active game sessions"
+    },
+    "games/{gameId}/questions/{questionId}": {
+      "schema": { "$ref": "#/entities/Question" },
+      "description": "Stores the questions for a specific game"
+    },
+    "games/{gameId}/players/{playerId}": {
+      "schema": { "$ref": "#/entities/Player" },
+      "description": "Stores the players participating in a game"
+    }
+  }
+}

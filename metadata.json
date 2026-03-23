@@ -1,0 +1,5 @@
+{
+  "name": "Kahoot JSON Generator",
+  "description": "Gera questões para o Kahoot em JSON a partir de documentos, exportando num PDF de página única e evitando repetições.",
+  "requestFramePermissions": []
+}

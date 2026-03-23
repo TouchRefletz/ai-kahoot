@@ -1,0 +1,241 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { doc, setDoc, onSnapshot, updateDoc, collection, query, orderBy, getDoc } from 'firebase/firestore';
+import { db, auth, signInAnon } from '../firebase';
+import { handleFirestoreError, OperationType } from '../lib/firestore';
+import { BrainCircuit, CheckCircle2, XCircle, Play } from 'lucide-react';
+import { cn } from '../lib/utils';
+import confetti from 'canvas-confetti';
+
+export default function Player() {
+  const { gameId: urlGameId } = useParams();
+  const navigate = useNavigate();
+  
+  const [gameId, setGameId] = useState(urlGameId || '');
+  const [name, setName] = useState('');
+  const [joined, setJoined] = useState(false);
+  const [playerId, setPlayerId] = useState<string | null>(null);
+  
+  const [gameState, setGameState] = useState<any>(null);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [playerState, setPlayerState] = useState<any>(null);
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!joined || !gameId || !playerId) return;
+
+    const unsubGame = onSnapshot(doc(db, 'games', gameId), (doc) => {
+      if (doc.exists()) setGameState(doc.data());
+    }, (err) => handleFirestoreError(err, OperationType.GET, `games/${gameId}`));
+
+    const unsubQuestions = onSnapshot(query(collection(db, `games/${gameId}/questions`), orderBy('index')), (snap) => {
+      setQuestions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, `games/${gameId}/questions`));
+
+    const unsubPlayer = onSnapshot(doc(db, `games/${gameId}/players`, playerId), (doc) => {
+      if (doc.exists()) setPlayerState(doc.data());
+    }, (err) => handleFirestoreError(err, OperationType.GET, `games/${gameId}/players/${playerId}`));
+
+    return () => {
+      unsubGame();
+      unsubQuestions();
+      unsubPlayer();
+    };
+  }, [joined, gameId, playerId]);
+
+  // Reset selected answer when a new question starts
+  useEffect(() => {
+    if (gameState?.status === 'question') {
+      setSelectedAnswer(null);
+    }
+  }, [gameState?.currentQuestionIndex, gameState?.status]);
+
+  // Check answer when leaderboard starts
+  useEffect(() => {
+    if (gameState?.status === 'leaderboard' && playerState?.lastAnswerCorrect) {
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+    }
+  }, [gameState?.status, playerState?.lastAnswerCorrect]);
+
+
+  const handleJoin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth.currentUser) {
+      await signInAnon();
+      if (!auth.currentUser) return;
+    }
+
+    if (!gameId.trim() || !name.trim()) return;
+
+    try {
+      // Check if game exists
+      const gameDoc = await getDoc(doc(db, 'games', gameId.toUpperCase()));
+      if (!gameDoc.exists()) {
+        alert('Jogo não encontrado!');
+        return;
+      }
+
+      const uid = auth.currentUser.uid;
+      setPlayerId(uid);
+      
+      await setDoc(doc(db, `games/${gameId.toUpperCase()}/players`, uid), {
+        uid,
+        name: name.trim(),
+        score: 0,
+        currentAnswer: null,
+        lastAnswerCorrect: null,
+        joinedAt: new Date().toISOString()
+      });
+
+      setGameId(gameId.toUpperCase());
+      setJoined(true);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `games/${gameId}/players`);
+    }
+  };
+
+  const submitAnswer = async (index: number) => {
+    if (selectedAnswer !== null || gameState?.status !== 'question') return;
+    setSelectedAnswer(index);
+    
+    try {
+      await updateDoc(doc(db, `games/${gameId}/players`, playerId!), {
+        currentAnswer: index,
+        answeredAt: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  if (!joined) {
+    return (
+      <div className="min-h-screen bg-neutral-900 flex flex-col items-center justify-center p-4 font-sans text-white">
+        <div className="max-w-md w-full bg-neutral-800 p-8 rounded-3xl shadow-2xl border border-neutral-700">
+          <div className="text-center mb-8">
+            <BrainCircuit className="w-16 h-16 text-indigo-500 mx-auto mb-4" />
+            <h1 className="text-3xl font-extrabold tracking-tight">Entrar no Jogo</h1>
+          </div>
+          
+          <form onSubmit={handleJoin} className="space-y-4">
+            <input
+              type="text"
+              placeholder="PIN do Jogo"
+              value={gameId}
+              onChange={(e) => setGameId(e.target.value.toUpperCase())}
+              className="w-full text-center text-2xl font-bold tracking-widest bg-neutral-900 border-2 border-neutral-700 rounded-xl py-4 focus:outline-none focus:border-indigo-500 transition-colors uppercase"
+              required
+            />
+            <input
+              type="text"
+              placeholder="Seu Apelido"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full text-center text-xl font-bold bg-neutral-900 border-2 border-neutral-700 rounded-xl py-4 focus:outline-none focus:border-indigo-500 transition-colors"
+              required
+              maxLength={15}
+            />
+            <button
+              type="submit"
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2"
+            >
+              <Play className="w-6 h-6" />
+              Entrar no Jogo
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (!gameState) return <div className="min-h-screen bg-neutral-900 flex items-center justify-center text-white">Carregando...</div>;
+
+  const status = gameState.status;
+
+  return (
+    <div className="min-h-screen bg-neutral-900 text-white font-sans flex flex-col">
+      <header className="bg-neutral-950 px-6 py-4 border-b border-neutral-800 flex justify-between items-center">
+        <div className="font-bold text-lg">{name}</div>
+        <div className="bg-neutral-800 px-4 py-1 rounded-full font-mono font-bold text-indigo-400">
+          {playerState?.score || 0} pts
+        </div>
+      </header>
+
+      <main className="flex-1 flex flex-col p-4">
+        
+        {(status === 'lobby' || status === 'generating' || status === 'ended') && (
+          <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6">
+            <div className="w-24 h-24 bg-neutral-800 rounded-full flex items-center justify-center animate-pulse mb-4">
+              <span className="text-4xl font-black text-neutral-600">?</span>
+            </div>
+            <h2 className="text-3xl font-black">
+              {status === 'generating' ? 'O professor está gerando questões com IA...' : 
+               status === 'ended' ? 'Fim da rodada! Aguarde o professor...' : 
+               'Você está no jogo!'}
+            </h2>
+            <p className="text-neutral-400 text-xl">Olhe para a tela principal.</p>
+          </div>
+        )}
+
+        {status === 'question' && (
+          <div className="flex-1 flex flex-col">
+            {selectedAnswer !== null ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center">
+                <div className="w-24 h-24 bg-neutral-800 rounded-full flex items-center justify-center mb-6">
+                  <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+                <h2 className="text-3xl font-black">Aguardando os outros...</h2>
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col">
+                {questions[gameState.currentQuestionIndex] && (
+                  <div className="text-center mb-6">
+                    <h2 className="text-2xl md:text-3xl font-black leading-tight">
+                      {questions[gameState.currentQuestionIndex].question}
+                    </h2>
+                  </div>
+                )}
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {questions[gameState.currentQuestionIndex]?.choices.map((choice: string, idx: number) => {
+                    const colors = ['bg-red-500', 'bg-blue-500', 'bg-yellow-500', 'bg-green-500'];
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => submitAnswer(idx)}
+                        className={cn(colors[idx], "p-4 rounded-2xl shadow-lg active:scale-95 transition-transform flex items-center justify-center text-center")}
+                      >
+                        <span className="text-xl md:text-2xl font-bold">{choice}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {status === 'leaderboard' && (
+          <div className={cn(
+            "flex-1 flex flex-col items-center justify-center text-center transition-colors duration-500",
+            playerState?.lastAnswerCorrect ? "bg-green-600" : "bg-red-600"
+          )}>
+            {playerState?.lastAnswerCorrect ? (
+              <>
+                <CheckCircle2 className="w-32 h-32 text-white mb-6" />
+                <h2 className="text-5xl font-black mb-2">Correto!</h2>
+                <p className="text-2xl font-bold opacity-80">+{playerState?.lastScoreAdded || 0} pts</p>
+              </>
+            ) : (
+              <>
+                <XCircle className="w-32 h-32 text-white mb-6" />
+                <h2 className="text-5xl font-black mb-2">Incorreto!</h2>
+                <p className="text-2xl font-bold opacity-80">Mais sorte na próxima</p>
+              </>
+            )}
+          </div>
+        )}
+
+      </main>
+    </div>
+  );
+}
