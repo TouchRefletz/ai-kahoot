@@ -145,7 +145,7 @@ export default function Host() {
           });
           
           batch.update(doc(db, 'games', gameId!), { status: 'answer_reveal' });
-          await batch.commit().catch(e => console.error(e));
+          await batch.commit().catch(e => handleFirestoreError(e, OperationType.UPDATE, `games/${gameId}`));
           
         } else {
           setTimeLeft(remaining);
@@ -217,9 +217,10 @@ export default function Host() {
       REGRAS:
       1. JSON com lista de questões.
       2. 4 opções, 1 correta (índice 0 a 3).
-      3. NUNCA repita estas questões:
+      3. Forneça uma explicação curta (1-2 frases) para CADA opção, explicando por que ela está certa ou errada.
+      4. NUNCA repita estas questões:
       ${gameState?.history?.length > 0 ? gameState.history.join('\n') : 'Nenhuma ainda.'}
-      4. APENAS JSON válido.
+      5. APENAS JSON válido.
       `;
 
       parts.push({ text: prompt });
@@ -239,10 +240,11 @@ export default function Host() {
                   properties: {
                     question: { type: Type.STRING },
                     choices: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    explanations: { type: Type.ARRAY, items: { type: Type.STRING } },
                     correctAnswerIndex: { type: Type.INTEGER },
                     timeLimit: { type: Type.INTEGER }
                   },
-                  required: ["question", "choices", "correctAnswerIndex", "timeLimit"]
+                  required: ["question", "choices", "explanations", "correctAnswerIndex", "timeLimit"]
                 }
               }
             },
@@ -537,12 +539,19 @@ export default function Host() {
                     key={idx} 
                     className={cn(
                       colors[idx], 
-                      "p-6 rounded-2xl shadow-lg flex items-center transition-all duration-500",
-                      isCorrect ? "scale-105 ring-8 ring-white z-10" : "opacity-30 grayscale"
+                      "p-6 rounded-2xl shadow-lg flex flex-col justify-center transition-all duration-500 relative",
+                      isCorrect ? "scale-105 ring-8 ring-white z-10" : "opacity-50 grayscale"
                     )}
                   >
-                    <span className="text-2xl font-bold">{choice}</span>
-                    {isCorrect && <CheckCircle2 className="w-8 h-8 ml-auto text-white" />}
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-2xl font-bold">{choice}</span>
+                      {isCorrect ? <CheckCircle2 className="w-8 h-8 text-white" /> : <XCircle className="w-8 h-8 text-white/50" />}
+                    </div>
+                    {currentQ.explanations && currentQ.explanations[idx] && (
+                      <p className="text-white/90 text-sm md:text-base font-medium mt-2 bg-black/20 p-3 rounded-xl">
+                        {currentQ.explanations[idx]}
+                      </p>
+                    )}
                   </div>
                 );
               })}

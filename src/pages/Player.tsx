@@ -261,23 +261,31 @@ export default function Player() {
                 const isCorrect = idx === questions[gameState.currentQuestionIndex].correctAnswerIndex;
                 const isSelected = idx === playerState?.currentAnswer;
                 const colors = ['bg-red-500', 'bg-blue-500', 'bg-yellow-500', 'bg-green-500'];
+                const explanation = questions[gameState.currentQuestionIndex]?.explanations?.[idx];
                 
                 return (
                   <div
                     key={idx}
                     className={cn(
                       colors[idx], 
-                      "p-4 rounded-2xl shadow-lg flex items-center justify-center text-center transition-all duration-500 relative",
-                      isCorrect ? "scale-105 ring-4 ring-white z-10" : "opacity-30 grayscale"
+                      "p-4 rounded-2xl shadow-lg flex flex-col justify-center text-center transition-all duration-500 relative",
+                      isCorrect ? "scale-105 ring-4 ring-white z-10" : "opacity-50 grayscale"
                     )}
                   >
-                    <span className="text-xl md:text-2xl font-bold">{choice}</span>
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <span className="text-xl md:text-2xl font-bold">{choice}</span>
+                      {isCorrect ? <CheckCircle2 className="w-6 h-6 text-white" /> : <XCircle className="w-6 h-6 text-white/50" />}
+                    </div>
+                    {explanation && (
+                      <p className="text-white/90 text-sm font-medium mt-2 bg-black/20 p-2 rounded-lg">
+                        {explanation}
+                      </p>
+                    )}
                     {isSelected && (
                       <div className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg">
                         <span className="text-black font-black text-sm">Tu</span>
                       </div>
                     )}
-                    {isCorrect && <CheckCircle2 className="w-6 h-6 absolute bottom-2 right-2 text-white" />}
                   </div>
                 );
               })}

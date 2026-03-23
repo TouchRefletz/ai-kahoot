@@ -11,7 +11,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["lobby", "question", "leaderboard", "generating", "ended"],
+          "enum": ["lobby", "question", "answer_reveal", "leaderboard", "podium", "generating", "ended"],
           "description": "The current state of the game"
         },
         "currentQuestionIndex": {
@@ -46,6 +46,11 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Exactly 4 choices"
+        },
+        "explanations": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Explanations for each choice"
         },
         "correctAnswerIndex": { "type": "number" },
         "timeLimit": { "type": "number" }

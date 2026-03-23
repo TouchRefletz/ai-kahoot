@@ -29,7 +29,7 @@ service cloud.firestore {
     function isValidGame() {
       return hasRequiredFields(['hostUid', 'status', 'currentQuestionIndex', 'createdAt']) &&
              request.resource.data.hostUid is string &&
-             request.resource.data.status in ['lobby', 'question', 'leaderboard', 'generating', 'ended'] &&
+             request.resource.data.status in ['lobby', 'question', 'answer_reveal', 'leaderboard', 'podium', 'generating', 'ended'] &&
              request.resource.data.currentQuestionIndex is number;
     }
     
@@ -40,6 +40,7 @@ service cloud.firestore {
              request.resource.data.question.size() < 300 &&
              request.resource.data.choices is list &&
              request.resource.data.choices.size() == 4 &&
+             (!('explanations' in request.resource.data) || (request.resource.data.explanations is list && request.resource.data.explanations.size() == 4)) &&
              request.resource.data.correctAnswerIndex is number &&
              request.resource.data.timeLimit is number;
     }
