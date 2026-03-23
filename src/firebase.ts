@@ -11,16 +11,28 @@ export const signInWithGoogle = async () => {
   const provider = new GoogleAuthProvider();
   try {
     await signInWithPopup(auth, provider);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error signing in with Google', error);
+    if (error.code === 'auth/unauthorized-domain') {
+      alert('Erro: Domínio não autorizado. O dono do jogo precisa adicionar este site (ex: github.io) na lista de domínios autorizados no painel do Firebase Authentication.');
+    } else {
+      alert('Erro ao fazer login com Google: ' + error.message);
+    }
   }
 };
 
 export const signInAnon = async () => {
   try {
     await signInAnonymously(auth);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error signing in anonymously', error);
+    if (error.code === 'auth/operation-not-allowed') {
+      alert('Erro: Login Anônimo não está ativado no Firebase. O dono do jogo precisa ativar o provedor "Anônimo" no painel do Firebase Authentication.');
+    } else if (error.code === 'auth/unauthorized-domain') {
+      alert('Erro: Domínio não autorizado. O dono do jogo precisa adicionar este site (ex: github.io) na lista de domínios autorizados no painel do Firebase Authentication.');
+    } else {
+      alert('Erro ao entrar no jogo: ' + error.message);
+    }
   }
 };
 
