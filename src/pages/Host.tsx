@@ -4,9 +4,10 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { doc, setDoc, collection, onSnapshot, query, orderBy, updateDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestore';
-import { Upload, FileText, Trash2, Play, Users, BrainCircuit, RefreshCw, AlertCircle, Settings, ChevronRight, Trophy, X } from 'lucide-react';
+import { Upload, FileText, Trash2, Play, Users, BrainCircuit, RefreshCw, AlertCircle, Settings, ChevronRight, Trophy, X, CheckCircle2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import confetti from 'canvas-confetti';
+import { motion } from 'motion/react';
 
 const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -73,7 +74,7 @@ export default function Host() {
     }, (err) => handleFirestoreError(err, OperationType.GET, `games/${newGameId}`));
 
     const unsubPlayers = onSnapshot(collection(db, `games/${newGameId}/players`), (snap) => {
-      setPlayers(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.score - a.score));
+      setPlayers(snap.docs.map(d => ({ id: d.id, ...d.data() } as any)).sort((a: any, b: any) => b.score - a.score));
     }, (err) => handleFirestoreError(err, OperationType.LIST, `games/${newGameId}/players`));
 
     const unsubQuestions = onSnapshot(query(collection(db, `games/${newGameId}/questions`), orderBy('index')), (snap) => {
@@ -123,8 +124,8 @@ export default function Host() {
                 const answeredAt = p.answeredAt ? new Date(p.answeredAt).getTime() : now;
                 const timeTaken = Math.max((answeredAt - start) / 1000, 0);
                 const timeRatio = Math.min(timeTaken / currentQ.timeLimit, 1);
-                // Kahoot-like scoring: max 1000, min 500 for correct answer
-                points = Math.round((1 - (timeRatio / 2)) * 1000);
+                // Equação quadrática: 1000 - 1000 * (tempo / tempo_maximo)^2
+                points = Math.max(0, Math.round(1000 - (1000 * Math.pow(timeRatio, 2))));
               }
 
               batch.update(pRef, {
@@ -143,7 +144,7 @@ export default function Host() {
             }
           });
           
-          batch.update(doc(db, 'games', gameId!), { status: 'leaderboard' });
+          batch.update(doc(db, 'games', gameId!), { status: 'answer_reveal' });
           await batch.commit().catch(e => console.error(e));
           
         } else {
@@ -294,8 +295,8 @@ export default function Host() {
     const nextIdx = gameState.currentQuestionIndex + 1;
     if (nextIdx >= questions.length) {
       // End of current batch
-      await updateDoc(doc(db, 'games', gameId!), { status: 'ended' });
-      confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } });
+      await updateDoc(doc(db, 'games', gameId!), { status: 'podium' });
+      confetti({ particleCount: 300, spread: 150, origin: { y: 0.6 } });
     } else {
       await updateDoc(doc(db, 'games', gameId!), {
         status: 'question',
@@ -522,6 +523,40 @@ export default function Host() {
           </div>
         )}
 
+        {/* ANSWER REVEAL VIEW */}
+        {gameState.status === 'answer_reveal' && currentQ && (
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <h2 className="text-4xl md:text-5xl font-black leading-tight mb-8 text-center">{currentQ.question}</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-4xl mb-12">
+              {currentQ.choices.map((choice: string, idx: number) => {
+                const isCorrect = idx === currentQ.correctAnswerIndex;
+                const colors = ['bg-red-500', 'bg-blue-500', 'bg-yellow-500', 'bg-green-500'];
+                return (
+                  <div 
+                    key={idx} 
+                    className={cn(
+                      colors[idx], 
+                      "p-6 rounded-2xl shadow-lg flex items-center transition-all duration-500",
+                      isCorrect ? "scale-105 ring-8 ring-white z-10" : "opacity-30 grayscale"
+                    )}
+                  >
+                    <span className="text-2xl font-bold">{choice}</span>
+                    {isCorrect && <CheckCircle2 className="w-8 h-8 ml-auto text-white" />}
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => updateDoc(doc(db, 'games', gameId), { status: 'leaderboard' })}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xl px-12 py-5 rounded-full transition-all flex items-center gap-2"
+            >
+              Ver Ranking <ChevronRight className="w-6 h-6" />
+            </button>
+          </div>
+        )}
+
         {/* LEADERBOARD VIEW */}
         {gameState.status === 'leaderboard' && currentQ && (
           <div className="flex-1 flex flex-col items-center justify-center">
@@ -546,7 +581,77 @@ export default function Host() {
               onClick={nextQuestion}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xl px-12 py-5 rounded-full transition-all flex items-center gap-2"
             >
-              Próxima Questão <ChevronRight className="w-6 h-6" />
+              {gameState.currentQuestionIndex + 1 >= questions.length ? 'Ver Pódio' : 'Próxima Questão'} <ChevronRight className="w-6 h-6" />
+            </button>
+          </div>
+        )}
+
+        {/* PODIUM VIEW */}
+        {gameState.status === 'podium' && (
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <h2 className="text-5xl font-black mb-16 flex items-center gap-4 text-yellow-400">
+              <Trophy className="w-16 h-16" />
+              Pódio Final
+              <Trophy className="w-16 h-16" />
+            </h2>
+            
+            <div className="flex items-end justify-center gap-4 sm:gap-8 mb-16 h-64">
+              {/* 2nd Place */}
+              {players[1] && (
+                <div className="flex flex-col items-center animate-in slide-in-from-bottom-16 duration-700 delay-300 fill-mode-both">
+                  <span className="text-2xl font-bold mb-2 text-neutral-300">{players[1].name}</span>
+                  <span className="text-lg font-medium text-indigo-300 mb-4">{players[1].score} pts</span>
+                  <div className="w-24 sm:w-32 h-40 bg-neutral-300/20 rounded-t-xl border-t-4 border-neutral-300 flex items-start justify-center pt-4">
+                    <span className="text-4xl font-black text-neutral-300">2</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 1st Place */}
+              {players[0] && (
+                <div className="flex flex-col items-center animate-in slide-in-from-bottom-16 duration-700 delay-700 fill-mode-both">
+                  <span className="text-3xl font-black mb-2 text-yellow-400">{players[0].name}</span>
+                  <span className="text-xl font-bold text-yellow-200 mb-4">{players[0].score} pts</span>
+                  <div className="w-28 sm:w-40 h-56 bg-yellow-400/20 rounded-t-xl border-t-4 border-yellow-400 flex items-start justify-center pt-4">
+                    <span className="text-6xl font-black text-yellow-400">1</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 3rd Place */}
+              {players[2] && (
+                <div className="flex flex-col items-center animate-in slide-in-from-bottom-16 duration-700 delay-100 fill-mode-both">
+                  <span className="text-xl font-bold mb-2 text-amber-600">{players[2].name}</span>
+                  <span className="text-base font-medium text-amber-400 mb-4">{players[2].score} pts</span>
+                  <div className="w-24 sm:w-32 h-32 bg-amber-600/20 rounded-t-xl border-t-4 border-amber-600 flex items-start justify-center pt-4">
+                    <span className="text-3xl font-black text-amber-600">3</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {players.length > 3 && (
+              <div className="w-full max-w-2xl bg-neutral-800/50 p-6 rounded-3xl border border-neutral-700/50 mb-12 animate-in fade-in duration-1000 delay-1000 fill-mode-both">
+                <h3 className="text-xl font-bold mb-4 text-center text-neutral-400">Outros Jogadores</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {players.slice(3).map((p, i) => (
+                    <div key={p.id} className="flex items-center justify-between p-3 bg-neutral-800 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-neutral-500 font-bold">{i + 4}</span>
+                        <span className="font-medium">{p.name}</span>
+                      </div>
+                      <span className="text-indigo-400 font-bold">{p.score} pts</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => updateDoc(doc(db, 'games', gameId!), { status: 'ended' })}
+              className="bg-neutral-700 hover:bg-neutral-600 text-white font-bold text-lg px-8 py-4 rounded-full transition-all animate-in fade-in duration-1000 delay-1000 fill-mode-both"
+            >
+              Voltar ao Lobby
             </button>
           </div>
         )}

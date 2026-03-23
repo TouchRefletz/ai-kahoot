@@ -3,9 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { doc, setDoc, onSnapshot, updateDoc, collection, query, orderBy, getDoc } from 'firebase/firestore';
 import { db, auth, signInAnon } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestore';
-import { BrainCircuit, CheckCircle2, XCircle, Play } from 'lucide-react';
+import { BrainCircuit, CheckCircle2, XCircle, Play, Trophy } from 'lucide-react';
 import { cn } from '../lib/utils';
 import confetti from 'canvas-confetti';
+import { motion } from 'motion/react';
 
 export default function Player() {
   const { gameId: urlGameId } = useParams();
@@ -19,7 +20,9 @@ export default function Player() {
   const [gameState, setGameState] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);
   const [playerState, setPlayerState] = useState<any>(null);
+  const [players, setPlayers] = useState<any[]>([]);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
   useEffect(() => {
     if (!joined || !gameId || !playerId) return;
@@ -36,10 +39,15 @@ export default function Player() {
       if (doc.exists()) setPlayerState(doc.data());
     }, (err) => handleFirestoreError(err, OperationType.GET, `games/${gameId}/players/${playerId}`));
 
+    const unsubPlayers = onSnapshot(collection(db, `games/${gameId}/players`), (snap) => {
+      setPlayers(snap.docs.map(d => ({ id: d.id, ...d.data() } as any)).sort((a: any, b: any) => b.score - a.score));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, `games/${gameId}/players`));
+
     return () => {
       unsubGame();
       unsubQuestions();
       unsubPlayer();
+      unsubPlayers();
     };
   }, [joined, gameId, playerId]);
 
@@ -57,6 +65,22 @@ export default function Player() {
     }
   }, [gameState?.status, playerState?.lastAnswerCorrect]);
 
+  // Timer logic for player
+  useEffect(() => {
+    if (gameState?.status === 'question' && gameState?.questionStartTime) {
+      const interval = setInterval(() => {
+        const start = new Date(gameState.questionStartTime).getTime();
+        const now = Date.now();
+        const elapsed = Math.floor((now - start) / 1000);
+        const limit = gameState.timeLimit || 20;
+        const remaining = Math.max(0, limit - elapsed);
+        setTimeLeft(remaining);
+      }, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setTimeLeft(null);
+    }
+  }, [gameState?.status, gameState?.questionStartTime, gameState?.timeLimit]);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,6 +214,17 @@ export default function Player() {
               <div className="flex-1 flex flex-col">
                 {questions[gameState.currentQuestionIndex] && (
                   <div className="text-center mb-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="bg-neutral-800 px-3 py-1 rounded-full text-sm font-bold text-neutral-400">
+                        Questão {gameState.currentQuestionIndex + 1}
+                      </span>
+                      {timeLeft !== null && (
+                        <span className="bg-indigo-900/50 text-indigo-400 px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
+                          {timeLeft}s
+                        </span>
+                      )}
+                    </div>
                     <h2 className="text-2xl md:text-3xl font-black leading-tight">
                       {questions[gameState.currentQuestionIndex].question}
                     </h2>
@@ -214,6 +249,53 @@ export default function Player() {
           </div>
         )}
 
+        {status === 'answer_reveal' && (
+          <div className="flex-1 flex flex-col">
+            <div className="text-center mb-6">
+              <h2 className="text-2xl md:text-3xl font-black leading-tight">
+                {questions[gameState.currentQuestionIndex]?.question}
+              </h2>
+            </div>
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {questions[gameState.currentQuestionIndex]?.choices.map((choice: string, idx: number) => {
+                const isCorrect = idx === questions[gameState.currentQuestionIndex].correctAnswerIndex;
+                const isSelected = idx === playerState?.currentAnswer;
+                const colors = ['bg-red-500', 'bg-blue-500', 'bg-yellow-500', 'bg-green-500'];
+                
+                return (
+                  <div
+                    key={idx}
+                    className={cn(
+                      colors[idx], 
+                      "p-4 rounded-2xl shadow-lg flex items-center justify-center text-center transition-all duration-500 relative",
+                      isCorrect ? "scale-105 ring-4 ring-white z-10" : "opacity-30 grayscale"
+                    )}
+                  >
+                    <span className="text-xl md:text-2xl font-bold">{choice}</span>
+                    {isSelected && (
+                      <div className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg">
+                        <span className="text-black font-black text-sm">Tu</span>
+                      </div>
+                    )}
+                    {isCorrect && <CheckCircle2 className="w-6 h-6 absolute bottom-2 right-2 text-white" />}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-6 text-center">
+              {playerState?.lastAnswerCorrect ? (
+                <div className="bg-green-600 text-white p-4 rounded-xl font-bold text-xl animate-bounce">
+                  +{playerState?.lastScoreAdded || 0} pontos!
+                </div>
+              ) : (
+                <div className="bg-red-600 text-white p-4 rounded-xl font-bold text-xl">
+                  Errou!
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {status === 'leaderboard' && (
           <div className={cn(
             "flex-1 flex flex-col items-center justify-center text-center transition-colors duration-500",
@@ -232,6 +314,38 @@ export default function Player() {
                 <p className="text-2xl font-bold opacity-80">Mais sorte na próxima</p>
               </>
             )}
+          </div>
+        )}
+
+        {status === 'podium' && (
+          <div className="flex-1 flex flex-col items-center justify-center text-center">
+            <Trophy className="w-32 h-32 text-yellow-400 mb-6 animate-in zoom-in duration-700" />
+            <h2 className="text-4xl font-black mb-4">Fim de Jogo!</h2>
+            
+            {players.findIndex(p => p.id === playerId) === 0 ? (
+              <div className="bg-yellow-400/20 border-2 border-yellow-400 text-yellow-400 p-6 rounded-3xl animate-in slide-in-from-bottom-8 duration-700 delay-300 fill-mode-both">
+                <p className="text-2xl font-bold mb-2">Você Venceu! 🥇</p>
+                <p className="text-4xl font-black">{playerState?.score || 0} pts</p>
+              </div>
+            ) : players.findIndex(p => p.id === playerId) === 1 ? (
+              <div className="bg-neutral-300/20 border-2 border-neutral-300 text-neutral-300 p-6 rounded-3xl animate-in slide-in-from-bottom-8 duration-700 delay-300 fill-mode-both">
+                <p className="text-2xl font-bold mb-2">2º Lugar! 🥈</p>
+                <p className="text-4xl font-black">{playerState?.score || 0} pts</p>
+              </div>
+            ) : players.findIndex(p => p.id === playerId) === 2 ? (
+              <div className="bg-amber-600/20 border-2 border-amber-600 text-amber-500 p-6 rounded-3xl animate-in slide-in-from-bottom-8 duration-700 delay-300 fill-mode-both">
+                <p className="text-2xl font-bold mb-2">3º Lugar! 🥉</p>
+                <p className="text-4xl font-black">{playerState?.score || 0} pts</p>
+              </div>
+            ) : (
+              <div className="bg-indigo-600/20 border-2 border-indigo-500 text-indigo-300 p-6 rounded-3xl animate-in slide-in-from-bottom-8 duration-700 delay-300 fill-mode-both">
+                <p className="text-xl font-bold mb-2">Sua Posição:</p>
+                <p className="text-5xl font-black mb-2">#{players.findIndex(p => p.id === playerId) + 1}</p>
+                <p className="text-2xl font-bold">{playerState?.score || 0} pts</p>
+              </div>
+            )}
+            
+            <p className="text-neutral-400 mt-12 animate-in fade-in duration-1000 delay-1000 fill-mode-both">Olhe para a tela principal para ver o pódio completo.</p>
           </div>
         )}
 
