@@ -4,7 +4,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { doc, setDoc, collection, onSnapshot, query, orderBy, updateDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestore';
-import { Upload, FileText, Trash2, Play, Users, BrainCircuit, RefreshCw, AlertCircle, Settings, ChevronRight, Trophy, X, CheckCircle2 } from 'lucide-react';
+import { Upload, FileText, Trash2, Play, Users, BrainCircuit, RefreshCw, AlertCircle, Settings, ChevronRight, Trophy, X, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import confetti from 'canvas-confetti';
 import { motion } from 'motion/react';
@@ -88,17 +88,16 @@ export default function Host() {
     };
   }, [navigate]);
 
-  const isEndingQuestion = useRef(false);
+  const processedQuestionIndex = useRef(-1);
 
   // Timer logic
   useEffect(() => {
     if (gameState?.status === 'question' && gameState?.questionStartTime) {
-      isEndingQuestion.current = false;
       const currentQ = questions[gameState.currentQuestionIndex];
       if (!currentQ) return;
 
       const interval = setInterval(async () => {
-        if (isEndingQuestion.current) return;
+        if (processedQuestionIndex.current === gameState.currentQuestionIndex) return;
 
         const start = new Date(gameState.questionStartTime).getTime();
         const now = new Date().getTime();
@@ -108,7 +107,7 @@ export default function Host() {
         const allAnswered = players.length > 0 && players.every(p => p.currentAnswer !== null && p.currentAnswer !== -1);
 
         if (remaining <= 0 || allAnswered) {
-          isEndingQuestion.current = true;
+          processedQuestionIndex.current = gameState.currentQuestionIndex;
           setTimeLeft(0);
           clearInterval(interval);
           
